@@ -13,7 +13,7 @@ version:            0.1.0.0
 
 -- The license under which the package is released.
 -- license:
-author:             William Zhu
+author:             Liamzee
 maintainer:         Liam.Zhu@protonmail.com
 
 -- A copyright notice.
@@ -25,10 +25,10 @@ executable Dicewarist
     main-is:          Main.hs
 
     -- Modules included in this executable, other than Main.
-    -- other-modules:
+    other-modules:    Dicewarist
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
-    build-depends:    base ^>=4.16.1.0
+    build-depends:    base ^>=4.16.1.0, haskeline, tinyfiledialogs, text, ghc, ghc-boot
     hs-source-dirs:   app
-    default-language: Haskell2010
+    default-language: GHC2021
