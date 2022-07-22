@@ -106,7 +106,7 @@ dicewarist = inputs >> process >> writeToFile
     sanitizeNumberOfDice :: Maybe Text -> IO NumberOfDice
     sanitizeNumberOfDice (Just text) 
         | Just diceNumber <- maybeRead (unpack text) :: Maybe Int,
-          diceNumber <= 20 || diceNumber > 0 = pure diceNumber
+          diceNumber <= 20 && diceNumber > 0 = pure diceNumber
     sanitizeNumberOfDice _ = invalidMessage diceMessage sanitizeNumberOfDice
 
     getSourceFile :: IO InputFile
