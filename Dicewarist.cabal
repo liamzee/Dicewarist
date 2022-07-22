@@ -29,6 +29,7 @@ executable Dicewarist
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
-    build-depends:    base ^>=4.16.1.0, haskeline, tinyfiledialogs, text, ghc, ghc-boot
+    build-depends:    base ^>=4.16.1.0, haskeline, tinyfiledialogs,
+                      text, ghc, ghc-boot, transformers
     hs-source-dirs:   app
     default-language: GHC2021
