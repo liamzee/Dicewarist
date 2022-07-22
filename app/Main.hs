@@ -4,12 +4,11 @@ module Main where
 
 import Dicewarist ( dicewarist )
 import Graphics.UI.TinyFileDialogs
-import Control.Monad.Trans.State ( StateT(..) )
 
 main :: IO ()
 main = do
     initialize
-    (runStateT dicewarist) (0, "", "")
+    dicewarist
     pure ()
 
 initialize :: IO OK

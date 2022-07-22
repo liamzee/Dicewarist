@@ -19,8 +19,8 @@ import Graphics.UI.TinyFileDialogs
 import GHC.Plugins ( HasCallStack )
 import GHC.IO ( unsafePerformIO )
 import GHC.Settings.Utils ( maybeRead )
-import Control.Monad.Trans.Class ( MonadTrans ( lift ) )
-import Control.Monad.Trans.State.Lazy ( StateT , get , modify , put )
+import Control.Monad.Trans.Reader (ReaderT (runReaderT), asks)
+import Control.Monad.Trans.Class (lift)
 
 type NumberOfDice = Int
 type InputFile = Text
@@ -92,13 +92,13 @@ invalidMessage IM { .. } callback =
 
 -- Main program.
 
-dicewarist :: StateT Stores IO ()
-dicewarist = inputs >> process >> writeToFile
+dicewarist :: IO ()
+dicewarist = runReaderT process =<< inputs
 
     where
 
-    inputs :: StateT Stores IO ()
-    inputs = put =<< ((,,) <$> lift getNumberOfDice <*> lift getSourceFile <*> lift getOutputPath)
+    inputs :: IO Stores
+    inputs = ((,,) <$> getNumberOfDice <*> getSourceFile <*> getOutputPath)
 
     getNumberOfDice :: IO NumberOfDice
     getNumberOfDice = numberOfDicePrompt >>= sanitizeNumberOfDice
@@ -123,12 +123,18 @@ dicewarist = inputs >> process >> writeToFile
     sanitizeGetOutputPath (Just filePath) = pure $ unpack filePath
     sanitizeGetOutputPath _ = invalidMessage outputPathMessage sanitizeGetOutputPath
 
-    process :: StateT Stores IO ()
+    process :: ReaderT Stores IO ()
     process = do
 
-        ( numberOfDice , inputFile , outputPath ) <- get
-        let processedInputFile = unwords . appendNumbers numberOfDice . lines $ inputFile
-        put ( numberOfDice , processedInputFile , outputPath )
+        ( numberOfDice , outputFile , outputPath ) <- asks processInner
+        lift $ writeFile outputPath outputFile
+
+        where 
+            
+        processInner ( numberOfDice , inputFile , outputPath ) =
+            
+            ( numberOfDice , unwords . appendNumbers numberOfDice . lines $ inputFile ,
+            outputPath )
 
     appendNumbers :: NumberOfDice -> [ Text ] -> [ Text ] 
     appendNumbers numberOfDice inputFile =
@@ -140,9 +146,3 @@ dicewarist = inputs >> process >> writeToFile
 
             addAnotherDice :: [ Text -> Text ]
             addAnotherDice = cons <$> [ '1' .. '6' ]
-
-    writeToFile :: StateT Stores IO ()
-    writeToFile = do
-        
-        ( _ , outputFile , filePath ) <- get
-        lift $ writeFile filePath outputFile
