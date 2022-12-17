@@ -4,6 +4,7 @@
 
 module Dicewarist where
 
+import Control.Applicative (liftA2)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Reader (ReaderT (runReaderT), asks)
 import Data.List (iterate')
@@ -16,7 +17,7 @@ import Data.Text
     unpack,
     unwords,
   )
-import Data.Text.IO (putStrLn, readFile, writeFile)
+import Data.Text.IO (readFile, writeFile)
 import GHC.Settings.Utils (maybeRead)
 import Graphics.UI.TinyFileDialogs
   ( IconType (Error, Info),
@@ -37,7 +38,62 @@ type InputFile = Text
 
 type OutputPath = FilePath
 
+-- Main program.
+
+dicewarist :: IO ()
+dicewarist = inputs >>= runReaderT process
+
 data Stores = MkStore !NumberOfDice !InputFile !OutputPath
+
+inputs :: IO Stores
+inputs = MkStore <$> getNumberOfDice <*> getSourceFile <*> getOutputPath
+  where
+    getNumberOfDice :: IO NumberOfDice
+    getNumberOfDice = numberOfDicePrompt >>= sanitizeNumberOfDice
+      where
+        sanitizeNumberOfDice :: Maybe Text -> IO NumberOfDice
+        sanitizeNumberOfDice (Just text)
+          | Just diceNumber <- maybeRead (unpack text) :: Maybe Int,
+            diceNumber <= 20 && diceNumber > 0 =
+              pure diceNumber
+        sanitizeNumberOfDice Nothing = invalidMessage diceMessage sanitizeNumberOfDice
+
+    getSourceFile :: IO InputFile
+    getSourceFile = fileSelectorPrompt >>= sanitizeGetSourceFile >>= readFile
+      where
+        sanitizeGetSourceFile :: Maybe [Text] -> IO FilePath
+        sanitizeGetSourceFile (Just [filePath]) = pure $ unpack filePath
+        sanitizeGetSourceFile Nothing = invalidMessage sourceMessage sanitizeGetSourceFile
+
+    getOutputPath :: IO FilePath
+    getOutputPath = outputFilePrompt >>= sanitizeGetOutputPath
+      where
+        sanitizeGetOutputPath :: Maybe Text -> IO FilePath
+        sanitizeGetOutputPath (Just filePath) = pure $ unpack filePath
+        sanitizeGetOutputPath Nothing = invalidMessage outputPathMessage sanitizeGetOutputPath
+
+process :: ReaderT Stores IO ()
+process = do
+  MkStore _ outputFile outputPath <- asks processInner
+  lift $ writeFile outputPath outputFile
+  where
+    processInner :: Stores -> Stores
+    processInner (MkStore numberOfDice inputFile outputPath) =
+      MkStore
+        numberOfDice
+        (unwords . appendNumbers numberOfDice . lines $ inputFile)
+        outputPath
+      where
+        appendNumbers :: NumberOfDice -> [Text] -> [Text]
+        appendNumbers numberOfDice inputFile =
+          zipWith (\a b -> a <> ":" <> b) inputFile indices
+          where
+            indices :: [Text]
+            indices = iterate' addAnotherDice [empty] !! numberOfDice
+            
+            addAnotherDice :: [Text] -> [Text]
+            addAnotherDice = liftA2 cons ['1' .. '6']
+
 
 -- names using InvalidMessage to pass data to functions, heavy in Texts
 -- InvalidMessage is a type used specifically to package data.
@@ -112,55 +168,3 @@ invalidMessage IM {..} callback = do
   responseFunction >>= \case
     Nothing -> errorMessageBox errorMessage
     u -> callback u
-
--- Main program.
-
-dicewarist :: IO ()
-dicewarist = inputs >>= runReaderT process
-
-inputs :: IO Stores
-inputs = MkStore <$> getNumberOfDice <*> getSourceFile <*> getOutputPath
-  where
-    getNumberOfDice :: IO NumberOfDice
-    getNumberOfDice = numberOfDicePrompt >>= sanitizeNumberOfDice
-      where
-        sanitizeNumberOfDice :: Maybe Text -> IO NumberOfDice
-        sanitizeNumberOfDice (Just text)
-          | Just diceNumber <- maybeRead (unpack text) :: Maybe Int,
-            diceNumber <= 20 && diceNumber > 0 =
-              pure diceNumber
-        sanitizeNumberOfDice Nothing = invalidMessage diceMessage sanitizeNumberOfDice
-
-    getSourceFile :: IO InputFile
-    getSourceFile = fileSelectorPrompt >>= sanitizeGetSourceFile >>= readFile
-      where
-        sanitizeGetSourceFile :: Maybe [Text] -> IO FilePath
-        sanitizeGetSourceFile (Just [filePath]) = pure $ unpack filePath
-        sanitizeGetSourceFile Nothing = invalidMessage sourceMessage sanitizeGetSourceFile
-
-    getOutputPath :: IO FilePath
-    getOutputPath = outputFilePrompt >>= sanitizeGetOutputPath
-      where
-        sanitizeGetOutputPath :: Maybe Text -> IO FilePath
-        sanitizeGetOutputPath (Just filePath) = pure $ unpack filePath
-        sanitizeGetOutputPath Nothing = invalidMessage outputPathMessage sanitizeGetOutputPath
-
-process :: ReaderT Stores IO ()
-process = do
-  MkStore _ outputFile outputPath <- asks processInner
-  lift $ writeFile outputPath outputFile
-  where
-    processInner :: Stores -> Stores
-    processInner (MkStore numberOfDice inputFile outputPath) =
-      MkStore
-        numberOfDice
-        (unwords . appendNumbers numberOfDice . lines $ inputFile)
-        outputPath
-
-    appendNumbers :: NumberOfDice -> [Text] -> [Text]
-    appendNumbers numberOfDice inputFile =
-      zipWith (\a b -> a <> ":" <> b) inputFile $
-        iterate' (addAnotherDice <*>) [empty] !! numberOfDice
-      where
-        addAnotherDice :: [Text -> Text]
-        addAnotherDice = cons <$> ['1' .. '6']
